@@ -1,0 +1,22 @@
+[project]
+name = "jev-opus-agent"
+version = "0.1.0"
+description = "Reference coding agent: Opus 5.5 reasons and writes code, Jev makes typed decisions, code enforces the rules."
+requires-python = ">=3.10"
+dependencies = ["anthropic>=0.40", "typesafe-sdk>=0.7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+jev-agent = "jev_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["jev_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
