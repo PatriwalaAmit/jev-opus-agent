@@ -1,4 +1,4 @@
-# jev-opus-agent
+# JEV OPUS AGENT
 
 A small, readable reference implementation of a coding agent with two kinds of thinking:
 
