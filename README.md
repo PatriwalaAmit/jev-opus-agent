@@ -1,4 +1,4 @@
-# JEV OPUS AGENT
+# JEV OPUS AGENT 
 
 A small, readable reference implementation of a coding agent with two kinds of thinking:
 
@@ -7,6 +7,76 @@ A small, readable reference implementation of a coding agent with two kinds of t
 - **Plain code** owns the engineering state, enforces hard rules, and is the only thing that touches files or runs processes.
 
 It accompanies the *AI Architecture & Engineering* newsletter edition "Wiring Jev and Opus 5.5 into a Coding Agent".
+
+## Problem and solution
+
+### The issue
+
+Most coding agents put one large LLM in charge of everything: planning, editing, running commands, and deciding when to stop. That creates familiar failure modes:
+
+- **Unsafe actions** — the model may delete files, push, or run destructive commands because “it seemed reasonable.”
+- **No real engineering memory** — chat history is used as state, so the agent forgets what it tried, what failed, and what’s still open.
+- **False “done”** — it claims success without a clean test run, or loops forever on the same broken fix.
+- **Hard to audit or tune** — you can’t see *why* it chose an action, or adjust confidence thresholds from real runs.
+
+### How this project solves it
+
+Work is split into three layers:
+
+| Layer | Role |
+|---|---|
+| **Opus 5.5 (System Two)** | Heavy cognition: plan, pick files, write edits, summarize |
+| **Jev (System One)** | Small typed decisions: what next, is this command safe, why tests failed, is the request done |
+| **Plain Python** | Owns state, hard rules, and is the *only* thing that touches files or runs processes |
+
+The loop keeps an **EngineeringState** (plan, files seen/changed, last test, open issues), lets Jev pick the next action, lets hard rules in code override unsafe or premature steps, and only stops when verification passes, a human is needed, or the step budget is hit. Every decision is written to `.jev_agent/audit.jsonl`.
+
+**In one line:** LLMs decide and draft; code enforces safety and state — an engineering control loop, not an unbounded chat that can touch your machine.
+
+### Example: `examples/buggy_calc`
+
+A small broken calculator with failing tests. The agent is pointed at a **copy** of this folder and asked to make the tests pass.
+
+**Bugs in `calc.py`:**
+
+```python
+def add(a, b):
+    return a - b          # wrong operator
+
+
+def divide(a, b):
+    return a / b          # no ZeroDivisionError → ValueError handling
+```
+
+**What `test_calc.py` expects:**
+
+- `add(2, 3) == 5`
+- `divide(10, 4) == 2.5`
+- `divide(1, 0)` raises `ValueError` matching `"divide by zero"`
+
+**How the agent typically solves it:**
+
+1. **plan** — understand the request (“make all tests in `test_calc.py` pass”)
+2. **search** — read `calc.py` and `test_calc.py` (hard rule: no edit before inspect)
+3. **edit** — Opus rewrites `add` to use `+`, and `divide` to catch zero and raise `ValueError`
+4. **test** — run `python -m pytest -q` through the command gate
+5. **verify** — Jev scores completion against the original request only after a passing run
+
+Run it yourself (after setting API keys — see Quick start):
+
+```powershell
+Copy-Item -Recurse examples\buggy_calc $env:TEMP\buggy_calc -Force
+jev-agent "Make all tests in test_calc.py pass" `
+  --repo "$env:TEMP\buggy_calc" `
+  --test-cmd "python -m pytest -q" `
+  --approve
+```
+
+Or without API keys, the scripted offline demo walks the same loop with fakes:
+
+```powershell
+python examples\offline_demo.py
+```
 
 ## How the loop works
 
